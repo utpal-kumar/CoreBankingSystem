@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CBS - Core Banking System</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>🏦</text></svg>" />
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, sans-serif; }
+        body { background: #f4f6f9; color: #1f2d3d; }
+        .app { display: flex; min-height: 100vh; }
+        .sidebar { width: 220px; background: #1e3a5f; color: #fff; padding: 20px 0; }
+        .sidebar h2 { padding: 0 20px 20px; font-size: 20px; border-bottom: 1px solid #2e4d72; }
+        .nav-item { padding: 12px 20px; cursor: pointer; color: #cdd9e8; }
+        .nav-item:hover, .nav-item.active { background: #2e4d72; color: #fff; }
+        .main { flex: 1; padding: 24px; overflow-y: auto; }
+        .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        .card { background: #fff; border-radius: 10px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 16px; }
+        .cards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap: 16px; }
+        .stat { background: #fff; border-radius: 10px; padding: 18px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+        .stat .label { font-size: 13px; color: #62748a; }
+        .stat .value { font-size: 24px; font-weight: 700; color: #1e3a5f; margin-top: 6px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { text-align: left; padding: 10px; border-bottom: 1px solid #eef1f5; font-size: 14px; }
+        th { color: #62748a; font-weight: 600; }
+        button { background: #1e3a5f; color: #fff; border: none; padding: 10px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+        button:hover { background: #2e4d72; }
+        button.secondary { background: #6c7a8c; }
+        input, select { width: 100%; padding: 10px; margin: 6px 0 14px; border: 1px solid #d4dae3; border-radius: 6px; font-size: 14px; }
+        label { font-size: 13px; color: #445; font-weight: 600; }
+        .login-wrap { display: flex; align-items: center; justify-content: center; height: 100vh; background: #1e3a5f; }
+        .login-card { background: #fff; padding: 36px; border-radius: 12px; width: 340px; box-shadow: 0 4px 20px rgba(0,0,0,.2); }
+        .login-card h1 { color: #1e3a5f; margin-bottom: 20px; text-align: center; }
+        .msg { padding: 10px; border-radius: 6px; margin-bottom: 12px; font-size: 14px; }
+        .msg.err { background: #fde8e8; color: #b00020; }
+        .msg.ok { background: #e6f7ec; color: #1a7f4b; }
+        .badge { padding: 3px 8px; border-radius: 12px; font-size: 12px; background: #e8f0fb; color: #1e3a5f; }
+        .row { display: flex; gap: 12px; }
+        .row > div { flex: 1; }
+        .logout { background: transparent; color: #cdd9e8; border: 1px solid #2e4d72; }
+    </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useCallback } = React;
+const API = 'http://localhost:8080/api';
+
+function api(path, method = 'GET', body = null, token = null) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  return fetch(API + path, {
+    method, headers,
+    body: body ? JSON.stringify(body) : null
+  }).then(async r => {
+    const data = await r.json();
+    if (!r.ok || !data.success) throw new Error(data.message || 'Request failed');
+    return data.data;
+  });
+}
+
+function Login({ onLogin }) {
+  const [username, setUser] = useState('admin');
+  const [password, setPass] = useState('admin123');
+  const [err, setErr] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setErr(''); setLoading(true);
+    try {
+      const res = await api('/auth/login', 'POST', { username, password });
+      onLogin(res.token, res.username, res.roles);
+    } catch (e) { setErr(e.message); }
+    finally { setLoading(false); }
+  };
+
+  return (
+    <div className="login-wrap">
+      <form className="login-card" onSubmit={submit}>
+        <h1>🏦 CBS Login</h1>
+        {err && <div className="msg err">{err}</div>}
+        <label>Username</label>
+        <input value={username} onChange={e => setUser(e.target.value)} />
+        <label>Password</label>
+        <input type="password" value={password} onChange={e => setPass(e.target.value)} />
+        <button style={{ width: '100%' }} disabled={loading}>
+          {loading ? 'Signing in...' : 'Sign In'}
+        </button>
+        <p style={{ textAlign: 'center', marginTop: 14, fontSize: 12, color: '#888' }}>
+          admin / admin123 &nbsp;·&nbsp; teller / teller123
+        </p>
+      </form>
+    </div>
+  );
+}
+
+function Stat({ label, value }) {
+  return <div className="stat"><div className="label">{label}</div><div className="value">{value}</div></div>;
+}
+
+function Dashboard({ token }) {
+  const [data, setData] = useState(null);
+  useEffect(() => {
+    api('/dashboard', 'GET', null, token).then(setData).catch(() => {});
+  }, [token]);
+  if (!data) return <div>Loading...</div>;
+  return (
+    <div>
+      <div className="cards-grid" style={{ marginBottom: 16 }}>
+        <Stat label="Total Accounts" value={data.totalAccounts} />
+        <Stat label="Customers" value={data.totalCustomers} />
+        <Stat label="Total Deposits" value={'$' + Number(data.totalDeposits).toFixed(2)} />
+        <Stat label="Loans Outstanding" value={'$' + Number(data.totalLoansOutstanding).toFixed(2)} />
+        <Stat label="Transactions" value={data.totalTransactions} />
+      </div>
+      <div className="card">
+        <h3>Welcome to Core Banking System</h3>
+        <p style={{ marginTop: 8, color: '#62748a' }}>
+          Use the menu to manage customers, accounts, transfers, and loans. The system uses
+          double-entry ledger posting and JWT-secured APIs.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function Customers({ token }) {
+  const [list, setList] = useState([]);
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [msg, setMsg] = useState('');
+  const load = useCallback(() => api('/customers', 'GET', null, token).then(setList).catch(() => {}), [token]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const add = async (e) => {
+    e.preventDefault(); setMsg('');
+    try {
+      await api('/customers', 'POST', { name, email, phone: '', type: 'INDIVIDUAL', address: '', kycStatus: 'VERIFIED' }, token);
+      setName(''); setEmail(''); setMsg('Customer created'); load();
+    } catch (e) { setMsg(e.message); }
+  };
+
+  return (
+    <div>
+      <div className="card">
+        <h3>Add Customer</h3>
+        {msg && <div className={'msg ' + (msg.includes('created') ? 'ok' : 'err')}>{msg}</div>}
+        <form onSubmit={add}>
+          <div className="row">
+            <div><label>Name</label><input value={name} onChange={e => setName(e.target.value)} required /></div>
+            <div><label>Email</label><input value={email} onChange={e => setEmail(e.target.value)} required /></div>
+          </div>
+          <button>Add Customer</button>
+        </form>
+      </div>
+      <div className="card">
+        <h3>Customers</h3>
+        <table>
+          <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Type</th><th>KYC</th></tr></thead>
+          <tbody>
+            {list.map(c => (
+              <tr key={c.id}><td>{c.id}</td><td>{c.name}</td><td>{c.email}</td>
+                <td><span className="badge">{c.type}</span></td><td>{c.kycStatus}</td></tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function Accounts({ token }) {
+  const [list, setList] = useState([]);
+  useEffect(() => {
+    api('/accounts', 'GET', null, token).then(setList).catch(() => {});
+  }, [token]);
+  return (
+    <div className="card">
+      <h3>Accounts</h3>
+      <table>
+        <thead><tr><th>Account #</th><th>Customer</th><th>Type</th><th>Status</th><th>Balance</th><th>Currency</th></tr></thead>
+        <tbody>
+          {list.map(a => (
+            <tr key={a.id}>
+              <td>{a.accountNumber}</td><td>{a.customer ? a.customer.name : '-'}</td>
+              <td><span className="badge">{a.type}</span></td><td>{a.status}</td>
+              <td>{Number(a.balance).toFixed(2)}</td><td>{a.currency}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function Transfer({ token }) {
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [amount, setAmount] = useState('');
+  const [msg, setMsg] = useState('');
+  const submit = async (e) => {
+    e.preventDefault(); setMsg('');
+    try {
+      const r = await api('/transactions/transfer', 'POST', { fromAccount: from, toAccount: to, amount: parseFloat(amount), description: 'Web transfer' }, token);
+      setMsg('SUCCESS ref: ' + r.reference); setFrom(''); setTo(''); setAmount('');
+    } catch (e) { setMsg(e.message); }
+  };
+  return (
+    <div className="card">
+      <h3>Fund Transfer</h3>
+      {msg && <div className={'msg ' + (msg.startsWith('SUCCESS') ? 'ok' : 'err')}>{msg}</div>}
+      <form onSubmit={submit}>
+        <label>From Account</label><input value={from} onChange={e => setFrom(e.target.value)} placeholder="SAV1000001" required />
+        <label>To Account</label><input value={to} onChange={e => setTo(e.target.value)} placeholder="CUR2000001" required />
+        <label>Amount</label><input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} required />
+        <button>Transfer</button>
+      </form>
+    </div>
+  );
+}
+
+function Loans({ token }) {
+  const [customerId, setCid] = useState('');
+  const [principal, setPrincipal] = useState('');
+  const [rate, setRate] = useState('10');
+  const [term, setTerm] = useState('24');
+  const [list, setList] = useState([]);
+  const [msg, setMsg] = useState('');
+
+  const loadAll = () => api('/loans/npa', 'GET', null, token).catch(() => []).then(d => setList(d || []));
+  useEffect(() => { loadAll(); }, [token]);
+
+  const originate = async (e) => {
+    e.preventDefault(); setMsg('');
+    try {
+      const r = await api('/loans', 'POST', { customerId: parseInt(customerId), type: 'PERSONAL', principal: parseFloat(principal), interestRate: parseFloat(rate), termMonths: parseInt(term) }, token);
+      setMsg('Loan originated: ' + r.loanNumber + ' EMI ' + r.emiAmount);
+    } catch (e) { setMsg(e.message); }
+  };
+
+  return (
+    <div>
+      <div className="card">
+        <h3>Originate Loan</h3>
+        {msg && <div className={'msg ' + (msg.startsWith('Loan') ? 'ok' : 'err')}>{msg}</div>}
+        <form onSubmit={originate}>
+          <div className="row">
+            <div><label>Customer ID</label><input value={customerId} onChange={e => setCid(e.target.value)} required /></div>
+            <div><label>Principal</label><input type="number" step="0.01" value={principal} onChange={e => setPrincipal(e.target.value)} required /></div>
+          </div>
+          <div className="row">
+            <div><label>Interest Rate %</label><input type="number" step="0.1" value={rate} onChange={e => setRate(e.target.value)} /></div>
+            <div><label>Term (months)</label><input type="number" value={term} onChange={e => setTerm(e.target.value)} /></div>
+          </div>
+          <button>Create Loan</button>
+        </form>
+      </div>
+      <div className="card">
+        <h3>NPA Loans (Admin)</h3>
+        <table>
+          <thead><tr><th>Loan #</th><th>Customer</th><th>Outstanding</th><th>Status</th><th>NPA</th></tr></thead>
+          <tbody>
+            {list.map(l => (
+              <tr key={l.id}><td>{l.loanNumber}</td><td>{l.customer ? l.customer.name : '-'}</td>
+                <td>{Number(l.outstanding).toFixed(2)}</td><td>{l.status}</td><td>{l.npa ? 'YES' : 'NO'}</td></tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [token, setToken] = useState(localStorage.getItem('cbs_token') || null);
+  const [user, setUser] = useState(localStorage.getItem('cbs_user') || '');
+  const [view, setView] = useState('dashboard');
+
+  const handleLogin = (tk, username) => {
+    localStorage.setItem('cbs_token', tk);
+    localStorage.setItem('cbs_user', username);
+    setToken(tk); setUser(username); setView('dashboard');
+  };
+  const logout = () => {
+    localStorage.clear(); setToken(null); setUser('');
+  };
+
+  if (!token) return <Login onLogin={handleLogin} />;
+
+  const nav = [
+    ['dashboard', '📊 Dashboard'],
+    ['customers', '👤 Customers'],
+    ['accounts', '🏦 Accounts'],
+    ['transfer', '💸 Transfer'],
+    ['loans', '💳 Loans'],
+  ];
+
+  return (
+    <div className="app">
+      <div className="sidebar">
+        <h2>🏦 CBS</h2>
+        {nav.map(([k, label]) => (
+          <div key={k} className={'nav-item ' + (view === k ? 'active' : '')} onClick={() => setView(k)}>{label}</div>
+        ))}
+        <div style={{ padding: '20px' }}>
+          <div style={{ fontSize: 13, color: '#cdd9e8' }}>{user}</div>
+          <button className="logout" style={{ marginTop: 10, width: '100%' }} onClick={logout}>Logout</button>
+        </div>
+      </div>
+      <div className="main">
+        <div className="topbar"><h2 style={{ color: '#1e3a5f' }}>Core Banking System</h2></div>
+        {view === 'dashboard' && <Dashboard token={token} />}
+        {view === 'customers' && <Customers token={token} />}
+        {view === 'accounts' && <Accounts token={token} />}
+        {view === 'transfer' && <Transfer token={token} />}
+        {view === 'loans' && <Loans token={token} />}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
