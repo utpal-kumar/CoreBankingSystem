@@ -117,6 +117,12 @@ public class TransactionService {
         return transactionRepository.findByFromAccountIdOrToAccountId(accountId, accountId);
     }
 
+    public List<Transaction> historyByAccountNumber(String accountNumber) {
+        Account account = accountRepository.findByAccountNumber(accountNumber)
+                .orElseThrow(() -> new IllegalArgumentException("Account not found: " + accountNumber));
+        return history(account.getId());
+    }
+
     public Transaction reverse(String reference) {
         List<Transaction> txs = transactionRepository.findByReference(reference);
         if (txs.isEmpty()) throw new IllegalArgumentException("Transaction not found: " + reference);

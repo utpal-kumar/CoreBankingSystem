@@ -325,6 +325,57 @@ function Loans({ token }) {
   );
 }
 
+function AccountHistory({ token }) {
+  const [accountNumber, setAccountNumber] = useState('');
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  const load = async () => {
+    setLoading(true); setMsg('');
+    try {
+      const data = await api('/transactions/account-number/' + accountNumber, 'GET', null, token);
+      setHistory(data || []);
+      if (!data || data.length === 0) setMsg('No transactions found');
+    } catch (e) { setMsg(e.message); setHistory([]); }
+    finally { setLoading(false); }
+  };
+
+  return (
+    <div>
+      <div className="card">
+        <h3>Account History</h3>
+        {msg && <div className={'msg ' + (msg.startsWith('No') ? 'ok' : 'err')}>{msg}</div>}
+        <form onSubmit={(e) => { e.preventDefault(); load(); }}>
+          <label>Account Number</label>
+          <input value={accountNumber} onChange={e => setAccountNumber(e.target.value)} placeholder="e.g. SAV1000001" required />
+          <button type="submit" disabled={loading}>{loading ? 'Loading...' : 'View History'}</button>
+        </form>
+      </div>
+      {history.length > 0 && (
+        <div className="card">
+          <h3>Transactions for {accountNumber}</h3>
+          <table>
+            <thead><tr><th>Date</th><th>Reference</th><th>Type</th><th>Amount</th><th>From</th><th>To</th><th>Status</th><th>Description</th></tr></thead>
+            <tbody>
+              {history.map(t => (
+                <tr key={t.id}>
+                  <td>{new Date(t.createdAt).toLocaleString()}</td>
+                  <td>{t.reference}</td>
+                  <td><span className="badge">{t.type}</span></td>
+                  <td>{Number(t.amount).toFixed(2)} {t.currency}</td>
+                  <td>{t.fromAccount || '-'}</td><td>{t.toAccount || '-'}</td>
+                  <td>{t.status}</td><td>{t.description || '-'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function App() {
   const [token, setToken] = useState(localStorage.getItem('cbs_token') || null);
   const [user, setUser] = useState(localStorage.getItem('cbs_user') || '');
@@ -345,6 +396,7 @@ function App() {
     ['dashboard', '📊 Dashboard'],
     ['customers', '👤 Customers'],
     ['accounts', '🏦 Accounts'],
+    ['history', '📜 Account History'],
     ['transfer', '💸 Transfer'],
     ['loans', '💳 Loans'],
   ];
@@ -366,6 +418,7 @@ function App() {
         {view === 'dashboard' && <Dashboard token={token} />}
         {view === 'customers' && <Customers token={token} />}
         {view === 'accounts' && <Accounts token={token} onOpenAccount={() => setView('customers')} />}
+        {view === 'history' && <AccountHistory token={token} />}
         {view === 'transfer' && <Transfer token={token} />}
         {view === 'loans' && <Loans token={token} />}
       </div>

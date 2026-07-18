@@ -55,6 +55,12 @@ public class TransactionController {
                 .map(TransactionDto::from).collect(Collectors.toList()));
     }
 
+    @GetMapping("/account-number/{accountNumber}")
+    public ApiResponse<List<TransactionDto>> historyByAccountNumber(@PathVariable String accountNumber) {
+        return ApiResponse.ok(transactionService.historyByAccountNumber(accountNumber).stream()
+                .map(TransactionDto::from).collect(Collectors.toList()));
+    }
+
     @Data
     public static class TransferRequest {
         @NotBlank private String fromAccount;
