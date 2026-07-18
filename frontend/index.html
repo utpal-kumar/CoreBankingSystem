@@ -134,8 +134,15 @@ function Customers({ token }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [msg, setMsg] = useState('');
-  const load = useCallback(() => api('/customers', 'GET', null, token).then(setList).catch(() => {}), [token]);
 
+  const [accCid, setAccCid] = useState('');
+  const [accType, setAccType] = useState('SAVINGS');
+  const [accCurrency, setAccCurrency] = useState('USD');
+  const [accDeposit, setAccDeposit] = useState('');
+  const [accRate, setAccRate] = useState('');
+  const [accMsg, setAccMsg] = useState('');
+
+  const load = useCallback(() => api('/customers', 'GET', null, token).then(setList).catch(() => {}), [token]);
   useEffect(() => { load(); }, [load]);
 
   const add = async (e) => {
@@ -144,6 +151,19 @@ function Customers({ token }) {
       await api('/customers', 'POST', { name, email, phone: '', type: 'INDIVIDUAL', address: '', kycStatus: 'VERIFIED' }, token);
       setName(''); setEmail(''); setMsg('Customer created'); load();
     } catch (e) { setMsg(e.message); }
+  };
+
+  const openAccount = async (e) => {
+    e.preventDefault(); setAccMsg('');
+    try {
+      const r = await api('/customers/' + accCid + '/accounts', 'POST', {
+        type: accType, currency: accCurrency,
+        initialDeposit: parseFloat(accDeposit || '0'),
+        interestRate: accRate ? parseFloat(accRate) : null
+      }, token);
+      setAccMsg('Account created: ' + r.accountNumber);
+      setAccCid(''); setAccDeposit(''); setAccRate('');
+    } catch (e) { setAccMsg(e.message); }
   };
 
   return (
@@ -159,6 +179,31 @@ function Customers({ token }) {
           <button>Add Customer</button>
         </form>
       </div>
+
+      <div className="card">
+        <h3>Open Account for Customer</h3>
+        {accMsg && <div className={'msg ' + (accMsg.startsWith('Account created') ? 'ok' : 'err')}>{accMsg}</div>}
+        <form onSubmit={openAccount}>
+          <div className="row">
+            <div><label>Customer ID</label><input value={accCid} onChange={e => setAccCid(e.target.value)} placeholder="e.g. 1" required /></div>
+            <div><label>Account Type</label>
+              <select value={accType} onChange={e => setAccType(e.target.value)}>
+                <option value="SAVINGS">SAVINGS</option>
+                <option value="CURRENT">CURRENT</option>
+                <option value="FIXED_DEPOSIT">FIXED_DEPOSIT</option>
+                <option value="RECURRING_DEPOSIT">RECURRING_DEPOSIT</option>
+              </select>
+            </div>
+          </div>
+          <div className="row">
+            <div><label>Currency</label><input value={accCurrency} onChange={e => setAccCurrency(e.target.value)} /></div>
+            <div><label>Initial Deposit</label><input type="number" step="0.01" value={accDeposit} onChange={e => setAccDeposit(e.target.value)} placeholder="0.00" /></div>
+            <div><label>Interest Rate %</label><input type="number" step="0.1" value={accRate} onChange={e => setAccRate(e.target.value)} placeholder="optional" /></div>
+          </div>
+          <button>Open Account</button>
+        </form>
+      </div>
+
       <div className="card">
         <h3>Customers</h3>
         <table>
@@ -175,14 +220,17 @@ function Customers({ token }) {
   );
 }
 
-function Accounts({ token }) {
+function Accounts({ token, onOpenAccount }) {
   const [list, setList] = useState([]);
   useEffect(() => {
     api('/accounts', 'GET', null, token).then(setList).catch(() => {});
   }, [token]);
   return (
     <div className="card">
-      <h3>Accounts</h3>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h3>Accounts</h3>
+        <button className="secondary" onClick={onOpenAccount}>Open New Account</button>
+      </div>
       <table>
         <thead><tr><th>Account #</th><th>Customer</th><th>Type</th><th>Status</th><th>Balance</th><th>Currency</th></tr></thead>
         <tbody>
@@ -317,7 +365,7 @@ function App() {
         <div className="topbar"><h2 style={{ color: '#1e3a5f' }}>Core Banking System</h2></div>
         {view === 'dashboard' && <Dashboard token={token} />}
         {view === 'customers' && <Customers token={token} />}
-        {view === 'accounts' && <Accounts token={token} />}
+        {view === 'accounts' && <Accounts token={token} onOpenAccount={() => setView('customers')} />}
         {view === 'transfer' && <Transfer token={token} />}
         {view === 'loans' && <Loans token={token} />}
       </div>
